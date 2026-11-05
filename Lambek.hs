@@ -5,6 +5,7 @@ module Lambek where
 import Data.List (inits, tails)
 
 import LTypes
+import LExp
 
 -- Step 1: Checking grammaticality.
 
@@ -31,3 +32,30 @@ isGrammatical :: Lexicon sem -> [String] -> Bool
 isGrammatical lex ws = any (\ts -> dec_rinv ts (stp lex)) (mapM typesOf ws)
   where
     typesOf w = [t | (w', t, _) <- items lex, w' == w]
+
+-- Step 2: the same search, but each rule builds a lambda term.
+
+-- A left-focused derivation denotes a hole applied to arguments, represented
+-- by its argument list.
+
+der_rinv :: [(Var,LTp)] -> LTp -> [LExp]
+der_rinv gamma (DivL a b) = [L x e | e <- der_rinv ((x,a) : gamma) b]       -- R
+  where x = fresh (map (V . fst) gamma)
+der_rinv gamma (DivR b a) = [L x e | e <- der_rinv (gamma ++ [(x,a)]) b]    -- R'
+  where x = fresh (map (V . fst) gamma)
+der_rinv gamma (Atm p) =                                                    -- F
+  [foldl A (V x) args | (gl, (x,a) : gr) <- splits gamma, args <- der_lfoc gl a gr p]
+
+der_lfoc :: [(Var,LTp)] -> LTp -> [(Var,LTp)] -> Atm -> [[LExp]]
+der_lfoc gl (Atm q) gr p = [[] | null gl, null gr, q == p]                  -- X
+der_lfoc gl (DivL a b) gr p =                                               -- L
+  [e : args | (gl1, gl2) <- splits gl, e <- der_rinv gl2 a, args <- der_lfoc gl1 b gr p]
+der_lfoc gl (DivR b a) gr p =                                               -- L'
+  [e : args | (gr1, gr2) <- splits gr, e <- der_rinv gr1 a, args <- der_lfoc gl b gr2 p]
+
+-- All derivations of a sentence; word i becomes the free variable Word_i.
+derivations :: Lexicon sem -> [String] -> [LExp]
+derivations lex ws =
+  [ t | ctx <- mapM typesOf (zip [1 :: Int ..] ws), t <- der_rinv ctx (stp lex) ]
+  where
+    typesOf (i, w) = [(w ++ "_" ++ show i, t) | (w', t, _) <- items lex, w' == w]
