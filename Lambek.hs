@@ -53,9 +53,13 @@ der_lfoc gl (DivL a b) gr p =                                               -- L
 der_lfoc gl (DivR b a) gr p =                                               -- L'
   [e : args | (gr1, gr2) <- splits gr, e <- der_rinv gr1 a, args <- der_lfoc gl b gr2 p]
 
--- All derivations of a sentence; word i becomes the free variable Word_i.
-derivations :: Lexicon sem -> [String] -> [LExp]
+-- All derivations of a sentence; word i becomes the free variable Word_i. Each
+-- derivation comes with the semantic values of its free variables, taken from
+-- the lexical entries it used.
+derivations :: Lexicon sem -> [String] -> [(LExp, [(Var,sem)])]
 derivations lex ws =
-  [ t | ctx <- mapM typesOf (zip [1 :: Int ..] ws), t <- der_rinv ctx (stp lex) ]
+  [ (t, [(x, v) | (x, _, v) <- choice])
+  | choice <- mapM entriesOf (zip [1 :: Int ..] ws)
+  , t <- der_rinv [(x, tp) | (x, tp, _) <- choice] (stp lex) ]
   where
-    typesOf (i, w) = [(w ++ "_" ++ show i, t) | (w', t, _) <- items lex, w' == w]
+    entriesOf (i, w) = [(w ++ "_" ++ show i, tp, v) | (w', tp, v) <- items lex, w' == w]

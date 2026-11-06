@@ -1,4 +1,5 @@
 import Data.Char
+import Data.List (intercalate)
 import System.IO
 import Control.Exception
 
@@ -23,15 +24,32 @@ repl elx phandle = do
   line <- getLine
   -- split it up into "standardized" words
   let ws = map stdize $ words line
-  -- compute all derivations of the sentence, as lambda terms
+  -- compute all derivations of the sentence and evaluate each one in Python
   case Lambek.derivations elx ws of
-    []   -> putStrLn "That is not a well-formed sentence"
-    ders -> do
-      putStrLn "I can derive your sentence as follows:"
-      mapM_ (\t -> putStrLn ("   " ++ prettyLExp t)) ders
+    []         -> putStrLn "That is not a well-formed sentence"
+    [(t, env)] -> interpret t env >>= putStrLn
+    ders       -> do
+      putStrLn "That sentence is ambiguous"
+      mapM_ (\(t, env) -> do
+               r <- interpret t env
+               putStrLn ("Sense [" ++ prettyLExp t ++ "]: " ++ r)) ders
   -- repeat
   repl elx phandle
-      
+  where
+    interpret t env = runPythonCode phandle (PCode (withEnv env t))
+
+-- translate a lambda term into a Python expression
+toPython :: LExp -> String
+toPython (V x)   = x
+toPython (A t u) = toPython t ++ "(" ++ toPython u ++ ")"
+toPython (L x t) = "(lambda " ++ x ++ ": " ++ toPython t ++ ")"
+
+-- bind the word variables of a term to their semantic values by abstracting
+-- over them and applying the result to the values
+withEnv :: [(Var, PythonCode)] -> LExp -> String
+withEnv env t = "(lambda " ++ intercalate ", " (map fst env) ++ ": " ++ toPython t ++ ")("
+                ++ intercalate ", " ["(" ++ text c ++ ")" | (_, c) <- env] ++ ")"
+
 main = do
   -- send console output immediately to the user
   hSetBuffering stdout NoBuffering
@@ -53,7 +71,7 @@ main = do
       case mdb of
         Left err -> putStrLn ("Error loading file " ++ show err) >> getDB
         Right db -> return (PCode db)
-      
+
     getLex :: IO (Lexicon PythonCode)
     getLex = do
       putStr "Lexicon file: "
