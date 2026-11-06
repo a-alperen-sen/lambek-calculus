@@ -1,0 +1,12 @@
+Lexicon file: Facts about the world: Starting chat...
+> True
+> False
+> False
+> True
+> That sentence is ambiguous
+Sense [Every_1 Cat_2 (\a. A_4 Dog_5 (\b. Fears_3 a b))]: True
+Sense [A_4 Dog_5 (\a. Every_1 Cat_2 (\b. Fears_3 b a))]: False
+> True
+> False
+> That is not a well-formed sentence
+> 
